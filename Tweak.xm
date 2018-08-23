@@ -1,7 +1,7 @@
 #import "interfaces.h"
 
 //static BOOL EXSTO_ENABLED = YES;
-static BOOL EXSTO_GESTURES_DISABLED = NO;
+//static BOOL EXSTO_GESTURES_DISABLED = NO;
 static BOOL EXSTO_LIMIT_ICONS = NO;
 static int EXSTO_MAX_ICONS = 0;
 static double EXSTO_DELAY_SPEED = 0.2;
@@ -15,60 +15,57 @@ static CGFloat EXSTOHoverScale;
 static CGFloat EXSTObuttonRadius;
 static int EXSTOdirection;
 static _UIBackdropView *EXSTOWindowBlur;
-static NSMutableArray *exstoGestureArray;
-static NSMutableArray *exstoFolderArray;
+static NSMutableArray* gesturesAlloc;
 
 %hook SBFolderIconView
--(id)initWithFrame:(CGRect)frame{
-	id temp = %orig;
-
-    if([self respondsToSelector:@selector(type:)]){
-        log([self type]);
-        //quick center support
-        if([self type] != nil){
-            log(@"i am a quick center folder");
-            return temp;
-        }
-    }
-
-    //if(EXSTO_ENABLED){
-        //initialize arrays
-        if (exstoGestureArray == nil)
-            exstoGestureArray = [[NSMutableArray alloc] init];
-        if(exstoFolderArray == nil)
-            exstoFolderArray = [[NSMutableArray alloc] init];
-        
-        //TODO: add force touch
-        //else
-        //no force touch, just do long press
-        SBIconController * iconController = [%c(SBIconController) sharedInstance];
-        iconController.EXSTORecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:iconController action:@selector(handleExstoHold:)];
-
-        iconController.EXSTORecognizer.minimumPressDuration = EXSTO_DELAY_SPEED;
-
-        //actually add the recognizer
-        [self addGestureRecognizer:iconController.EXSTORecognizer]; 
-        //add objects to arrays for future use
-        [exstoGestureArray addObject: iconController.EXSTORecognizer];
-        [exstoFolderArray addObject: self];
-        log(@"added the gesture to folder");
-	//} 
-
-    return temp;
+%property(retain) id gesturesExsto;
+-(id)_folderIconImageView
+{	
+	if(!gesturesAlloc) {
+		gesturesAlloc = [@[] mutableCopy];
+	}
+	
+	SBIconController * iconController = [%c(SBIconController) sharedInstance];
+	
+	if(!self.gesturesExsto) {
+		self.gesturesExsto = [[UILongPressGestureRecognizer alloc] initWithTarget:iconController action:@selector(handleExstoHold:)];
+        self.gesturesExsto.minimumPressDuration = EXSTO_DELAY_SPEED;
+		//iconController.EXSTORecognizer.delegate = (id<UILongPressGestureRecognizerDelegate>)self;
+		[gesturesAlloc addObject:self.gesturesExsto];
+	}
+	
+	if(self.gesturesExsto) {
+		self.gesturesExsto.enabled = ![self isEditing];
+		[self removeGestureRecognizer:self.gesturesExsto];
+		[self addGestureRecognizer:self.gesturesExsto];
+		for (UIGestureRecognizer *recognizer in self.gestureRecognizers) {
+			[recognizer requireGestureRecognizerToFail:self.gesturesExsto];
+		}
+	}
+	
+	return %orig;
+}
+- (void)dalloc
+{
+	if(self.gesturesExsto) {
+		[gesturesAlloc removeObject:self.gesturesExsto];
+	}
+	%orig;
 }
 %end
 
 
 %hook SBIconController
+/*
 -(void)iconHandleLongPress:(id)press{
 	if ([press isKindOfClass: %c(SBFolderIconView)])
 	{
         if(EXSTO_GESTURES_DISABLED){
-            %log(@"make the jitter happen");
+            NSLog(@"make the jitter happen");
             %orig; //Let the jitter take control
         } 
         //else
-        %log(@"Exsto Magic");
+        NSLog(@"Exsto Magic");
 		//do nothing, let the Exsto Long press recognizers handle it
 	}
 	else{
@@ -87,22 +84,13 @@ static NSMutableArray *exstoFolderArray;
 		%orig;
 	}
 }
-
--(void)setIsEditing:(BOOL)arg1{
-    if(!arg1){ //done editing
-        if (EXSTO_GESTURES_DISABLED) {
-            //add them back
-            if(exstoGestureArray != nil && exstoFolderArray != nil){
-                for (int i = 0; i < [exstoFolderArray count]; ++i)
-                {
-                    //add recognizer
-                    [exstoFolderArray[i] addGestureRecognizer: exstoGestureArray[i]];
-                    EXSTO_GESTURES_DISABLED = NO;
-                }
-            }
-        }
-    }
-
+*/
+-(void)setIsEditing:(BOOL)arg1
+{
+	/*SBIconController * iconController = [%c(SBIconController) sharedInstance];
+    if(iconController.EXSTORecognizer) {
+		iconController.EXSTORecognizer.enabled = !arg1;
+	}*/
     %orig;
 }
 
@@ -115,9 +103,9 @@ static NSMutableArray *exstoFolderArray;
     	//get icons
     	SBFolderIconView *iconView = (SBFolderIconView *)recognizer.view;
     	SBFolder *selectedFolder = [iconView folder];
-		self.EXSTOImages = [[NSMutableArray alloc] init];
-		self.EXSTOFolderApplications = [[NSMutableArray alloc] init];
-        NSMutableArray *notifArray = [[NSMutableArray alloc] init];
+		self.EXSTOImages = [@[] mutableCopy];
+		self.EXSTOFolderApplications = [@[] mutableCopy];
+        NSMutableArray *notifArray = [@[] mutableCopy];
 		int iconCount = 0;
 
         bool iconLimitMet = false;
@@ -209,7 +197,7 @@ static NSMutableArray *exstoFolderArray;
         //add menu to content view
 	    [contentView addSubview:self.circleMenuView];
 
-        self.circleMenuView.delegate = self;
+        self.circleMenuView.delegate = (id<EXSTOCircleMenuDelegate>)self;
         [self.circleMenuView openMenuWithRecognizer:recognizer];
     }
     else if (recognizer.state == UIGestureRecognizerStateEnded)
@@ -247,7 +235,9 @@ static NSMutableArray *exstoFolderArray;
     //[tAlert show];
     log(self.EXSTOFolderApplications[anIndex]);
     log(@"launching app");
-    [self _launchIcon: self.EXSTOFolderApplications[anIndex]];
+	
+	NSString* bundleId = [self.EXSTOFolderApplications[anIndex] applicationBundleID];
+	[[UIApplication sharedApplication] launchApplicationWithIdentifier:bundleId suspended:NO];
 }
 
 %new
@@ -572,7 +562,9 @@ static NSMutableArray *exstoFolderArray;
     %orig;
 }
 %end
-static void reloadPreferences() {
+
+static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo)
+{
     log(@"reload prefs");
     
     NSDictionary *prefs = nil;
@@ -612,27 +604,16 @@ static void reloadPreferences() {
     //         }
     //     }
     // }
-
-    for(UILongPressGestureRecognizer *recog in exstoGestureArray){
-        recog.minimumPressDuration = EXSTO_DELAY_SPEED;
-    }
+	
+	for(UILongPressGestureRecognizer* gest in gesturesAlloc) {
+		gest.minimumPressDuration = EXSTO_DELAY_SPEED;
+	}
 
     log(@"prefs loaded success");
 }
 
-static inline void prefsChanged(CFNotificationCenterRef center,
-                                    void *observer,
-                                    CFStringRef name,
-                                    const void *object,
-                                    CFDictionaryRef userInfo) {
-    reloadPreferences();
-}
-
-%ctor {
-
-    reloadPreferences();
-
-    CFNotificationCenterRef center = CFNotificationCenterGetDarwinNotifyCenter();
-    CFNotificationCenterAddObserver(center, NULL, &prefsChanged, (CFStringRef)@"com.zachatrocity.exsto/prefsChanged", NULL, 0);
-	
+%ctor
+{
+	prefsChanged(NULL, NULL, NULL, NULL, NULL);
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, &prefsChanged, (CFStringRef)@"com.zachatrocity.exsto/prefsChanged", NULL, 0);
 }

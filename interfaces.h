@@ -1,12 +1,12 @@
 #import <QuartzCore/QuartzCore.h>
-#import <QuartzCore/CAFilter.h>
-#import <QuartzCore/CABackdropLayer.h>
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <objc/runtime.h>
 #import <substrate.h>
 #import "BlurBlur.h"
 #import "EXSTOCircleMenuView.h"
+
+#define NSLog(...)
 
 #define log(z) NSLog(@"[Exsto] %@", z)
 #define prefsID CFSTR("com.zachatrocity.exsto")
@@ -16,10 +16,26 @@
 
 // #define TWEAK_PREFS_COLOR [UIColor colorWithRed:0.08f green:0.75f blue:0.85f alpha:1.f]
 
+@interface UIApplication (Private)
+-(BOOL)launchApplicationWithIdentifier:(NSString*)bundleID suspended:(BOOL)suspended;
+@end
+
+@interface SBIconViewMap : NSObject
+-(id)mappedIconViewForIcon:(id)arg1 ;
+@end
+
+@interface SBIconModel : NSObject
+-(id)expectedIconForDisplayIdentifier:(id)arg1 ;
+@end
+
 @interface SBIconController : NSObject
+@property (nonatomic,retain) SBIconModel * model; 
+@property (nonatomic,readonly) SBIconViewMap * homescreenIconViewMap; 
 -(id)contentView;
 +(id)sharedInstance;
--(void)_launchIcon:(id)icon;
+-(void)_launchFromIconView:(id)arg1 ;
+-(id)iconViewForIcon:(id)arg1 location:(long long)arg2 ;
+-(void)iconTapped:(id)arg1 ;
 -(void)setIsEditing:(BOOL)arg1;
 -(void)openFolder:(id)folder animated:(BOOL)animated;
 -(NSArray *)anglesBetweenPointA:(CGPoint)a pointB:(CGPoint)b pointC:(CGPoint)c;
@@ -43,9 +59,7 @@
 //-(void)setEXSTOForceRecognizer:(DFContinuousForceTouchGestureRecognizer *)value;
 @end
 
-@interface SBIconViewMap : NSObject
 
-@end
 
 @interface SBIconImageView : UIView
 -(id)contentsImage;
@@ -94,10 +108,13 @@
 @end
 
 @interface SBFolderIconView : UIView
+@property (assign,nonatomic) BOOL isEditing;
+@property (retain) UILongPressGestureRecognizer* gesturesExsto;
 -(id)folder;
 -(id)initWithFrame:(CGRect)frame;
 -(id)type;
 -(BOOL)isInDock;
+-(UIView *)contentContainerView;
 @end
 
 @interface SBApplicationShortcutMenu : NSObject

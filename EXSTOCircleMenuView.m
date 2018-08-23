@@ -465,7 +465,7 @@ NSString* const CIRCLE_MENU_BUTTON_BORDER_WIDTH = @"kCircleMenuButtonBorderWidth
         UIView* closestButton;
         float shortestDist = 100000.0;
         int tTag;
-        if([self distanceFromPoint: INITIALPOINT toPointB: tPoint] > self.radius)
+        if([self distanceFromPoint: INITIALPOINT toPointB: tPoint] > self.buttonRadius)
         {
             for (UIView *but in self.buttons){
                 float distance = [self distanceFromPoint:but.center toPointB:tPoint];
